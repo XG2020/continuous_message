@@ -39,7 +39,7 @@ plugin = NekroPlugin(
     version="1.0.0",
     author="XGGM",
     url="https://github.com/XG2020/continuous_message",
-    allow_sleep=True,
+    allow_sleep=False,
     sleep_brief="仅在收到聊天消息时合并短时间内的连续消息。",
 )
 
