@@ -31,5 +31,5 @@
 | `ENABLE_TYPING_DETECTION` | `true` | 输入状态感知 |
 | `MAX_TYPING_WAIT` | `60` | 输入状态超时保护 |
 | `ENABLE_RECALL_FILTER` | `true` | 过滤防抖窗口内被标记撤回的消息 |
-| `ID_ACCESS_MODE` | `all` | `all`、`whitelist`、`blacklist` |
+| `ID_ACCESS_MODE` | `全部用户` | 下拉选择 `全部用户`、`白名单` 或 `黑名单`；兼容旧配置值 `all`、`whitelist`、`blacklist` |
 | `ID_LIST` | `[]` | 用户平台 ID 列表 |

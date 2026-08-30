@@ -9,9 +9,9 @@ import asyncio
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from nekro_agent.api.plugin import ConfigBase, NekroPlugin
 from nekro_agent.api.schemas import AgentCtx
@@ -63,8 +63,32 @@ class ContinuousMessageConfig(ConfigBase):
     MAX_TYPING_WAIT: float = Field(default=60.0, title="输入状态最大等待", description="用户持续输入时的超时保护秒数。")
     ENABLE_RECALL_FILTER: bool = Field(default=True, title="过滤撤回消息", description="在结算前移除已标记为撤回的消息。")
 
-    ID_ACCESS_MODE: str = Field(default="all", title="用户访问模式", description="all=全部用户；whitelist=仅名单；blacklist=名单用户放行但不防抖。")
+    ID_ACCESS_MODE: Literal["全部用户", "白名单", "黑名单"] = Field(
+        default="全部用户",
+        title="用户访问模式",
+        description="选择消息防抖的用户范围：全部用户、仅白名单用户，或排除黑名单用户。",
+    )
     ID_LIST: list[str] = Field(default_factory=list, title="用户 ID 名单", description="按平台用户 ID 匹配，支持字符串或数字形式。")
+
+    @field_validator("ID_ACCESS_MODE", mode="before")
+    @classmethod
+    def normalize_access_mode(cls, value: object) -> str:
+        """兼容旧版英文配置值，并统一保存为中文选项。"""
+        if value is None or not str(value).strip():
+            return "全部用户"
+        aliases = {
+            "all": "全部用户",
+            "whitelist": "白名单",
+            "blacklist": "黑名单",
+            "全部用户": "全部用户",
+            "白名单": "白名单",
+            "黑名单": "黑名单",
+        }
+        raw = str(value).strip()
+        normalized = aliases.get(raw.lower(), aliases.get(raw))
+        if normalized is None:
+            raise ValueError("用户访问模式必须选择：全部用户、白名单或黑名单")
+        return normalized
 
 
 config: ContinuousMessageConfig = plugin.get_config(ContinuousMessageConfig)
@@ -93,6 +117,20 @@ class _PendingSession:
 
 
 _sessions: dict[str, _PendingSession] = {}
+
+
+def _normalize_access_mode(value: object) -> str:
+    """将中文下拉值和旧版英文值转换为内部模式名。"""
+    aliases = {
+        "all": "all",
+        "whitelist": "whitelist",
+        "blacklist": "blacklist",
+        "全部用户": "all",
+        "白名单": "whitelist",
+        "黑名单": "blacklist",
+    }
+    raw = str(value or "全部用户").strip()
+    return aliases.get(raw.lower(), aliases.get(raw, "all"))
 
 
 def _chat_type_value(message: ChatMessage) -> str:
@@ -270,7 +308,7 @@ async def handle_user_message(ctx: AgentCtx, message: ChatMessage) -> MsgSignal:
         return MsgSignal.CONTINUE
 
     user_id = _user_id(message)
-    access_mode = str(config.ID_ACCESS_MODE or "all").strip().lower()
+    access_mode = _normalize_access_mode(config.ID_ACCESS_MODE)
     allowed_ids = {str(item) for item in (config.ID_LIST or [])}
     if access_mode == "whitelist" and user_id not in allowed_ids:
         return MsgSignal.CONTINUE
